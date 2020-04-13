@@ -1,0 +1,51 @@
+---
+title: "Lab One"
+author: "Jalen Jiang"
+date: "4/12/2020"
+output:   
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Version
+
+Here is the R code that will show the version of R I have installed, and below it is my output:
+```{r}
+version
+```
+
+## Loading Library
+
+I will now load some libraries
+
+```{r}
+library(sf)
+library(raster)
+library(spData)
+library(spDataLarge)
+```
+
+## Example 1: Map of Africa and South America
+
+Here is some code that will plot a map of countries in Africa and South America, but no others. We start with `world` which is the set of all country multipolygons in the world, and create a filter for the column `world$continent` for Africa and South America. Then we plot column 0, the geometries.
+
+```{r world}
+world_asia = world[world$continent=="Africa" | world$continent == "South America", ]
+plot(world_asia[0])
+```
+
+## Example 2: 10x10 raster
+
+Here we create a 10x10 raster and fill them each with numbers ranging from 0 to 10. Which, in some sense, actually makes it 10x10x10...
+
+```{r}
+hundred_random_numbers = runif(100,0,10)
+my_raster = raster(nrows = 10, ncols = 10, res = 1, xmn = 0, xmx = 10, ymn = 0, ymx = 10, vals = hundred_random_numbers)
+plot(my_raster)
+```
