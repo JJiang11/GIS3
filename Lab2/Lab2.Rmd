@@ -1,0 +1,118 @@
+---
+title: "1999 Argentina Election in Buenos Aires"
+author: "Jalen Jiang"
+date: "4/17/2020"
+output: 
+  html_document:
+    theme: spacelab
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cartogram)
+library(sf)
+library(tidyverse)
+library(dplyr)
+library(geojsonsf)
+library(ggplot2)
+library(spData)
+library(rgdal)
+```
+
+## Context
+
+In 1999, Argentina held a general election for president and parliament. Incumbent President Carlos Menem of the Justicialist Party (a Peronist party, but Menem was mostly neoliberal) had grown unpopular in the midst of a growing financial crisis. Menem was term limited, so Eduardo Duhalde was nominated (much to Menem's annoyance, since he wanted a third term). Duhalde had criticized Menem's policies and called for a return to traditional Peronism. Fernando de la Rúa ran as part of Alianza, a party coalition created in 1997 to oppose Menem's neoliberal government. Domingo Cavallo, originally Menem's economic minister, was ousted from the party in 1996 as Cavallo's initially promising economic changes gave way to unemployment and social unrest, not to mention personal disputes with the cabinet. He created his own party, APR, and ran as a third-party candidate in 1999.  
+This was a highly contentious election as Argentina's economy was crumbling and its government seemed hopelessly corrupt and unstable. Alianza won, but the new President, de la Rúa, resigned following the December 2001 riots in Buenos Aires.
+
+## Loading Data
+
+The data comes from GeoDa's sample practice. The geojson_sf package downloads the geojson and stores it as an `sf` data frame. The geojson doesn't come with a projection, so we have to manually set it to 22193, Gauss-Kruger Zone 3. I'm also gonna transform `world` from 4326 to 22193 to match my data set.
+
+```{r transform}
+json_sf = geojson_sf(
+  "https://raw.githubusercontent.com/JJiang11/GIS3/master/buenosaires.geojson"
+)
+ba = json_sf %>%
+  st_set_crs(22193)
+world22193 = st_transform(world,22193)
+```
+
+It's yelling at me because set-crs doesn't actually transform the data. I looked at the geojson, and coordinates are already set in the 22193 projection (no need for st_transform), but the sf object doesn't have this information yet. I need to give them that info through set-crs.  
+Now that our data is in the right projection, let's first plot our data in context by increasing our bounding box on all size by a factor of 20.
+
+```{r world}
+plot(st_geometry(ba), expandBB = c(20,20,20,20), col = "gray", lwd = 3)
+plot(st_geometry(world22193[world22193$name_long == "Argentina", ]), add=TRUE)
+```
+
+We see the autonomous city of Buenos Aires is a black speck, in the massive country of Argentina. Let's zoom in on the city.
+
+```{r local}
+plot(st_geometry(ba), col = "gray", lwd = 3)
+```
+
+Buenos Aires is now highlighted. The intra-city boundaries represent electoral precincts in 1999.
+
+## Chloropleth and Cartogram
+
+Let's make a chloropleth of percentage of votes going to Alianza by precint in Buenos Aires. In addition to the percentage Alianza, it would be useful to know the total votes by precinct. We take the centroids of each precinct, resize it by number of votes for any party, and plot it on top of the chloropleth.
+
+```{r centroids}
+plot(ba["AL99PC"],reset=FALSE)
+cex = sqrt(ba$VOTPOS_1) / 60
+cir_cents = st_centroid(ba,of_largest_polygon = TRUE)
+plot(st_geometry(cir_cents), add = TRUE, cex = cex)
+
+```
+
+Hmm. That map is quite messy, and it's visually difficult to judge all these tightly packed clutter of circles. The `cartogram` package allows us to make cartograms. This allows us to more clearly see the results of the election since the precinct polygons are resized to match their number of votes.
+
+```{r carto}
+x_cartogram = cartogram(ba, "VOTPOS_1", itermax=10)
+```
+
+We see that R takes quite a while to make this cartogram. I set it for ten iterations, and each iteration reconfigures the polygons until their areas are closer proportionally to the variable `VOTPOS_1` or number of votes. The 'mean size error' is minimized in this process and decays toward 1. I think 1.0103 is acceptably low, I don't want to keep it running forever.
+Now that the cartogram object is made, we plot the Alianza percentage as a chloropleth. Let's also compare with APR while we're at it.  
+
+```{r plotcar}
+plot(x_cartogram["AL99PC"], main="Percentage of Votes for Alianza by Precinct", breaks = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0))
+plot(x_cartogram["APR99PC"], main="Percentage of Votes for APR by Precinct", breaks = c(0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0))
+```  
+
+This cartogram map is geographically distorted, but it now accurately represents the volume of votes coming from each precinct. Now we won't be biased by the differing voter densities across the city.
+
+## Including Plots
+
+Let's see if there's a coorelation between the percentage Alianza and total voter turnout as a percentage of registered voters, and create a least-squares regression line to find the trend. 
+
+```{r correlation}
+cor(ba$AL99PC, ba$TURN99PC)
+```
+
+The correlation coefficient is 0.432. 
+
+```{r linear}
+linear_model <- lm(ba$AL99PC~ ba$TURN99PC)
+summary(linear_model)
+plot(ba$AL99PC ~ ba$TURN99PC)
+abline(linear_model)
+plot(linear_model)
+```
+
+The model says that for every 1% factor increase in voter turnout, the proportion of votes going to Alianza increases by 0.66%. The residual plots also look solid. 
+Let's make a boxplot of votes for each party by precinct. Each observation is one precinct.
+
+```{r box}
+boxplot(ba$AL99PC, ba$APR99PC, names = c('Alianza','APR'), xlab = "Party", ylab = "Proportion of Votes", main = "1999 Election Results in Buenos Aires by Precinct")
+```
+
+## Sources
+
+Data:  
+https://geodacenter.github.io/data-and-lab//buenos-aires_old/  
+Election Context:  
+https://www.jstor.org/stable/25675920?seq=1#metadata_info_tab_contents  
+https://en.wikipedia.org/wiki/Domingo_Cavallo  
+https://en.wikipedia.org/wiki/1999_Argentine_general_election  
