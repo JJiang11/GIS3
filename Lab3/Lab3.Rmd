@@ -1,0 +1,63 @@
+---
+title: "Lab 3: NYC Citibikes"
+author: "Jalen Jiang"
+date: "4/24/2020"
+output: 
+  html_document:
+    theme: spacelab
+    toc: true
+    toc_float: true
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(sf)
+library(tidyverse)
+library(rgdal)
+library(jsonlite)
+library(tmap)
+```
+
+## Context
+
+Citi Bike is the privately-owned bikeshare system of New York City. It opened in 2013 and has successfully expanded its system. Despite it being named after Citi Bank, its lead sponsor at the time, it is now owned by Lyft. As part of its public-private partnership, the city publishes data on the system including live station feeds which I will use here.
+
+## Loading Data
+
+
+```{r}
+data = fromJSON(txt="https://feeds.citibikenyc.com/stations/stations.json")
+stations = data$stationBeanList
+```
+
+Unforunately, it seems like this data is NOT spatial. We will have to geocode it with the given lat/lon coordinates and convert it to a spatial points data frame.
+
+```{r}
+stations_sdf = SpatialPointsDataFrame(coords = cbind(stations$longitude, stations$latitude), data = stations, proj4string = CRS("+init=epsg:4326"))
+plot(stations_sdf)
+```
+
+
+
+```{r}
+m<- tm_shape(stations_sdf) + 
+  tm_markers(size = 0.1, col="availableDocks", shape = 3)
+
+# View using leaflet 
+tmap_leaflet(m)
+```
+
+We now have a map of dock availability. But this doesn't adjust for total number of bikes, so let's calculate percentage capacity instead.
+
+```{r}
+stations_sdf$percent_full =  stations_sdf$availableBikes/stations_sdf$totalDocks
+m<- tm_shape(stations_sdf) + tm_markers(size = 0.1,col="percent_full", shape = 3)                                                                                                                                                                                                
+# View using leaflet 
+tmap_leaflet(m)
+```
+
+
+## Sources
+
+Data:  
+https://catalog.data.gov/dataset/citi-bike-live-station-feed-json
