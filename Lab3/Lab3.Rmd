@@ -27,6 +27,8 @@ Citi Bike is the privately-owned bikeshare system of New York City. It opened in
 
 ```{r}
 data = fromJSON(txt="https://feeds.citibikenyc.com/stations/stations.json")
+
+data$stationBeanList
 stations = data$stationBeanList
 ```
 
